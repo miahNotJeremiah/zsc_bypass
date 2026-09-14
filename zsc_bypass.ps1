@@ -1,101 +1,232 @@
-if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) { Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs; exit }
+# ZScaler VPN Bypass Script
+# Run as standard user for testing (TEST MODE) or as Administrator for real changes (PRODUCTION MODE)
 
-[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
-[console]::WindowHeight = 25;[console]::WindowWidth = 105
-[console]::BufferHeight = 25;[console]::BufferWidth = 105
-[console]::Title = "ZScaler VPN Bypass";[Console]::CursorVisible = $false
-[console]::WindowHeight = 25;[console]::WindowWidth = 105
+# Check if running as administrator
+$IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
+# Modern Zscaler process names (covers legacy and current versions)
+$ZscalerProcessNames = @(
+    'ZSA', 'ZSATray', 'ZSService', 'ZSConnector', 'ZAPPRD',
+    'zsa', 'zsatray', 'zsservice', 'zsconnector', 'zapprd'
+)
 
-while($true)
-{
-	Write-Host "  _____  _____            __            "
-	Write-Host " /__  / / ___/_________ _/ /__  _____   "
-	Write-Host "   / /  \__ \/ ___/ __ '/ / _ \/ ___/   "
-	Write-Host "  / /_____/ / /__/ /_/ / /  __/ /       "
-	Write-Host " /____/____/\___/\__,_/_/\___/_/        "
-	Write-Host " "
-	Write-Host "     ____                             "
-	Write-Host "    / __ )__  ______  ____ ___________"
-	Write-Host "   / __  / / / / __ \/ __ '/ ___/ ___/"
-	Write-Host "  / /_/ / /_/ / /_/ / /_/ (__  |__  ) "
-	Write-Host " /_____/\__, / .___/\__,_/____/____/ "
-	Write-Host "       /____/_/                       "
-	Write-Host " "
-	Write-Host " "
+# Modern Zscaler component IDs for network binding
+$ZscalerComponentIDs = @(
+    'ZS_ZAPPRD', 'ZSCALER', 'ZSCONNECTOR', 'ZSATRAY', 'ZSSERVICE'
+)
 
-	Write-Host " "
-	Write-Host "1. ZScaler bypass [zscaler app is working in background, but internet connection is not filtered by it]"
-	Write-Host "                  {it works permanently, no need to run this script in background}"
-	Write-Host " "
-	Write-Host "2. ZScaler killer [all zscaler processes are constantly being killed by this script]"
-	Write-Host "                  {it works as long as this script is running}"
-	Write-Host " "
-	$menu = Read-Host "Choose an option: "
+# Display menu options
+function Show-Menu {
+    Write-Host ""
+    Write-Host "1. ZScaler Bypass - Disable network adapter binding"
+    if (-not $IsAdmin) {
+        Write-Host "   [TEST MODE: Simulation only]"
+    }
+    Write-Host ""
+    Write-Host "2. ZScaler Killer - Continuously kill ZScaler processes"
+    if (-not $IsAdmin) {
+        Write-Host "   [TEST MODE: Simulation only]"
+    }
+    Write-Host ""
+    Write-Host "3. Exit"
+    Write-Host ""
+}
 
-	if ($menu -eq '1') {
-		$confirmation = Read-Host "Do you want to enable/disable ZScaler Bypass? [e - enable / d - disable]"
+# Enable ZScaler bypass
+function Enable-ZScalerBypass {
+    if (-not $IsAdmin) {
+        Write-Host "[TEST MODE] Running as standard user"
+        Write-Host "Checking network adapter bindings..."
+        
+        foreach ($componentId in $ZscalerComponentIDs) {
+            $bindings = Get-NetAdapterBinding -AllBindings -ComponentID $componentId -ErrorAction SilentlyContinue
+            if ($bindings) {
+                Write-Host "  Found $($bindings.Count) binding(s) for $componentId"
+                Write-Host "  [TEST] Would disable these bindings"
+            } else {
+                Write-Host "  No bindings found for $componentId"
+            }
+        }
+        
+        Start-Sleep -Seconds 1
+        Write-Host "[TEST MODE] Operation completed (no changes made)"
+        Start-Sleep -Seconds 1
+        return
+    }
+    
+    try {
+        $foundBindings = $false
+        foreach ($componentId in $ZscalerComponentIDs) {
+            $bindings = Get-NetAdapterBinding -AllBindings -ComponentID $componentId -ErrorAction SilentlyContinue
+            if ($bindings) {
+                $bindings | Disable-NetAdapterBinding -Confirm:$false
+                $foundBindings = $true
+                Write-Host "Disabled binding for: $componentId"
+            }
+        }
+        
+        if (-not $foundBindings) {
+            Write-Host "No Zscaler bindings found to disable."
+        } else {
+            Write-Host "Bypass enabled successfully!"
+        }
+        Start-Sleep -Seconds 1
+    }
+    catch {
+        Write-Host "Error enabling bypass: $_"
+        Start-Sleep -Seconds 1
+    }
+}
 
-		if ($confirmation -eq 'e') {
-			Get-NetAdapterBinding -AllBindings -ComponentID ZS_ZAPPRD | Disable-NetAdapterBinding
-			clear
-			Write-Host " "
-			Write-Host " ______                                    _ "
-			Write-Host " | ___ \                                  | |"
-			Write-Host " | |_/ /_   _ _ __   __ _ ___ ___  ___  __| |"
-			Write-Host " | ___ \ | | | '_ \ / _' / __/ __|/ _ \/ _' |"
-			Write-Host " | |_/ / |_| | |_) | (_| \__ \__ \  __/ (_| |"
-			Write-Host " \____/ \__, | .__/ \__,_|___/___/\___|\__,_|"
-			Write-Host "         __/ | |                             "
-			Write-Host "        |___/|_|                             "
-			Start-Sleep -Seconds 2
-			break
-		}
-		if ($confirmation -eq 'd') {
-			Get-NetAdapterBinding -AllBindings -ComponentID ZS_ZAPPRD | Enable-NetAdapterBinding
-			clear
-			Write-Host " "
-			Write-Host "   ____                   "
-			Write-Host "  |  _ \  ___  _ __   ___ "
-			Write-Host "  | | | |/ _ \| '_ \ / _ \"
-			Write-Host "  | |_| | (_) | | | |  __/"
-			Write-Host "  |____/ \___/|_| |_|\___|"
-			Start-Sleep -Seconds 2
-			break
-		}
-		if ($confirmation -ne 'd' -and $confirmation -ne 'e') {
-			Write-Host " "
-			Write-Host "Please provide valid parameter!"
-			Start-Sleep -Seconds 1
-			clear
-		}
-	}
-	if ($menu -eq '2') {
-		$zproc = Get-Process -Name ZSA*
-		while ($true) {
-			clear
-			if ($zproc) {
-				Stop-Process -Name ZSA* -Force
-			}
-			Write-Host " "
-			Write-Host "   _  ___ _ _ _                   "
-			Write-Host "  | |/ (_) | (_)                  "
-			Write-Host "  | ' / _| | |_ _ __   __ _       "
-			Write-Host "  |  < | | | | | '_ \ / _` |      "
-			Write-Host "  | . \| | | | | | | | (_| |_ _ _ "
-			Write-Host "  |_|\_\_|_|_|_|_| |_|\__, (_|_|_)"
-			Write-Host "                       __/ |      "
-			Write-Host "                      |___/       "
-			Start-Sleep -Seconds 1
-		}
-		break
-	}
-	if ($menu -ne '1' -and $menu -ne '2') {
-			Write-Host " "
-			Write-Host "Please provide valid parameter!"
-			Start-Sleep -Seconds 1
-			clear
-		}
+# Disable ZScaler bypass
+function Disable-ZScalerBypass {
+    if (-not $IsAdmin) {
+        Write-Host "[TEST MODE] Running as standard user"
+        Write-Host "Checking network adapter bindings..."
+        
+        foreach ($componentId in $ZscalerComponentIDs) {
+            $bindings = Get-NetAdapterBinding -AllBindings -ComponentID $componentId -ErrorAction SilentlyContinue
+            if ($bindings) {
+                Write-Host "  Found $($bindings.Count) binding(s) for $componentId"
+                Write-Host "  [TEST] Would enable these bindings"
+            } else {
+                Write-Host "  No bindings found for $componentId"
+            }
+        }
+        
+        Start-Sleep -Seconds 1
+        Write-Host "[TEST MODE] Operation completed (no changes made)"
+        Start-Sleep -Seconds 1
+        return
+    }
+    
+    try {
+        $foundBindings = $false
+        foreach ($componentId in $ZscalerComponentIDs) {
+            $bindings = Get-NetAdapterBinding -AllBindings -ComponentID $componentId -ErrorAction SilentlyContinue
+            if ($bindings) {
+                $bindings | Enable-NetAdapterBinding -Confirm:$false
+                $foundBindings = $true
+                Write-Host "Enabled binding for: $componentId"
+            }
+        }
+        
+        if (-not $foundBindings) {
+            Write-Host "No Zscaler bindings found to enable."
+        } else {
+            Write-Host "Bypass disabled successfully!"
+        }
+        Start-Sleep -Seconds 1
+    }
+    catch {
+        Write-Host "Error disabling bypass: $_"
+        Start-Sleep -Seconds 1
+    }
+}
+
+# Kill ZScaler processes continuously
+function Start-ZScalerKiller {
+    if (-not $IsAdmin) {
+        Write-Host "[TEST MODE] Running as standard user"
+        Write-Host "Monitoring for ZScaler processes... (Press Ctrl+C to stop)"
+        Start-Sleep -Seconds 1
+        
+        while ($true) {
+            Clear-Host
+            Write-Host "[TEST MODE] Process Monitor Active"
+            Write-Host "Watching for: $($ZscalerProcessNames -join ', ')"
+            Write-Host ""
+            
+            $foundAny = $false
+            foreach ($procName in $ZscalerProcessNames) {
+                $processes = Get-Process -Name $procName -ErrorAction SilentlyContinue
+                if ($processes) {
+                    $foundAny = $true
+                    Write-Host "  [DETECTED] $($processes.Count) x $procName process(es)"
+                    Write-Host "            [TEST] Would kill these processes"
+                }
+            }
+            
+            if (-not $foundAny) {
+                Write-Host "  No ZScaler processes currently running"
+            }
+            
+            Write-Host ""
+            Write-Host "Refresh rate: 1 second (Ctrl+C to stop)"
+            Start-Sleep -Seconds 1
+        }
+    }
+    
+    Write-Host "Starting ZScaler Killer... Press Ctrl+C to stop."
+    Write-Host "Monitoring: $($ZscalerProcessNames -join ', ')"
+    Start-Sleep -Seconds 1
+    
+    while ($true) {
+        Clear-Host
+        $killedCount = 0
+        
+        foreach ($procName in $ZscalerProcessNames) {
+            $processes = Get-Process -Name $procName -ErrorAction SilentlyContinue
+            if ($processes) {
+                Stop-Process -Name $procName -Force -ErrorAction SilentlyContinue
+                $killedCount += $processes.Count
+            }
+        }
+        
+        if ($killedCount -gt 0) {
+            Write-Host "KILLED: $killedCount ZScaler process(es)"
+        } else {
+            Write-Host "No ZScaler processes found"
+        }
+        
+        Start-Sleep -Seconds 1
+    }
+}
+
+# Main execution
+Write-Host "ZScaler VPN Bypass Script"
+Write-Host ""
+
+if (-not $IsAdmin) {
+    Write-Host "MODE: TEST (Standard User)"
+    Write-Host "      All operations will be shown but no changes will be made"
+} else {
+    Write-Host "MODE: PRODUCTION (Administrator)"
+    Write-Host "      Operations will make real system changes"
+}
+
+while ($true) {
+    Show-Menu
+    $menuChoice = Read-Host "Choose an option"
+    
+    switch ($menuChoice) {
+        '1' {
+            $confirmation = Read-Host "Enable or disable? (e/d)"
+            
+            if ($confirmation -eq 'e') {
+                Enable-ZScalerBypass
+            }
+            elseif ($confirmation -eq 'd') {
+                Disable-ZScalerBypass
+            }
+            else {
+                Write-Host "Invalid choice! Please enter 'e' or 'd'."
+                Start-Sleep -Seconds 1
+            }
+        }
+        '2' {
+            Start-ZScalerKiller
+        }
+        '3' {
+            Write-Host "Exiting..."
+            Start-Sleep -Seconds 1
+            break
+        }
+        default {
+            Write-Host "Invalid option! Please choose 1, 2, or 3."
+            Start-Sleep -Seconds 1
+        }
+    }
 }
 
 exit
