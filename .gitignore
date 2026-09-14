@@ -13,10 +13,6 @@
 .vscode/
 .idea/
 
-# System files
-.DS_Store
-Thumbs.db
-
 # Dependencies
 node_modules/
 venv/
@@ -28,6 +24,10 @@ dist/
 build/
 target/
 .gradle/
+
+# OS generated files
+.DS_Store
+Thumbs.db
 
 # Compiled files
 *.pyc
@@ -64,8 +64,4 @@ htmlcov/
 *.Z
 *.lz
 *.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
 ```
